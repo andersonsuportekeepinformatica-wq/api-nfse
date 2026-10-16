@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NFS-e Nacional - Painel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="marca">
+      <span class="marca-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      </span>
+      <div>
+        <h1>NFS-e Nacional</h1>
+        <div class="marca-sub">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          Conexao segura &middot; certificado ICP-Brasil
+        </div>
+      </div>
+    </div>
+    <div class="apikey-box">
+      <button id="btnAmbiente" class="btn-ambiente">Ambiente: ...</button>
+      <label for="apiKey">x-api-key</label>
+      <input id="apiKey" type="password" placeholder="cole sua chave de API" />
+      <button id="salvarApiKey"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>Salvar</button>
+      <a href="/docs" target="_blank" rel="noopener">Swagger / API completa</a>
+    </div>
+  </header>
+
+  <div class="entidade-bar">
+    <div class="entidade-atual">
+      <span class="entidade-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1" />
+        </svg>
+      </span>
+      <div>
+        <span class="entidade-rotulo">Entidade ativa</span>
+        <strong id="entidadeNomeAtual">Nenhuma selecionada</strong>
+      </div>
+    </div>
+    <div class="entidade-troca">
+      <select id="seletorEntidade">
+        <option value="">Selecione uma entidade...</option>
+      </select>
+      <button id="btnNovaEntidade" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Novo certificado</button>
+      <button id="btnGerarChave" type="button" class="btn-secundario" hidden title="Gera uma nova chave de API so desta entidade (a anterior deixa de funcionar)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></svg>Gerar nova chave</button>
+    </div>
+  </div>
+
+  <dialog id="dialogChaveApi" class="dialog-chave" aria-labelledby="dialogChaveTitulo">
+    <h2 id="dialogChaveTitulo">Nova chave de API</h2>
+    <p>Entidade: <strong id="dialogChaveEntidade"></strong></p>
+    <p class="badge pendente">Copie e guarde agora: esta chave nao sera exibida de novo. A chave anterior desta entidade deixou de funcionar.</p>
+    <p class="dialog-chave-dica">Ela so da acesso aos dados desta entidade. Use no campo x-api-key do painel ou no Swagger.</p>
+    <div class="dialog-chave-valor">
+      <input id="dialogChaveValor" type="text" readonly aria-label="Chave de API gerada" />
+      <button id="btnCopiarChave" type="button">Copiar</button>
+    </div>
+    <div class="card-acoes">
+      <button id="btnFecharChave" type="button" class="btn-secundario">Ja guardei, fechar</button>
+    </div>
+  </dialog>
+
+  <nav class="tabs">
+    <button data-tab="inicio" class="tab-btn active">Comecar aqui</button>
+    <button data-tab="minhas-notas" class="tab-btn">Notas do Ambiente Nacional</button>
+    <span class="tabs-separador">Avancado</span>
+    <button data-tab="municipios" class="tab-btn avancado">Municipios</button>
+    <button data-tab="contribuintes" class="tab-btn avancado">Contribuintes</button>
+    <button data-tab="certificados" class="tab-btn avancado">Certificados</button>
+    <button data-tab="emitir" class="tab-btn avancado">Emitir DPS</button>
+    <button data-tab="dps" class="tab-btn avancado">Historico de DPS</button>
+    <button data-tab="notas" class="tab-btn avancado">Notas (NFS-e)</button>
+  </nav>
+
+  <main>
+    <section id="tab-inicio" class="tab-content active">
+      <div id="boasVindas" class="boas-vindas" style="display: none">
+        <h2>Ola, <span id="nomeBoasVindas"></span></h2>
+        <form id="formPeriodo" class="form-inline">
+          <label>De <input type="date" name="dataInicio" /></label>
+          <label>Ate <input type="date" name="dataFim" /></label>
+          <button type="submit" class="btn-grande"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>Atualizar minhas notas</button>
+          <button type="button" id="btnTrocarCertificado" class="btn-secundario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Usar outro certificado</button>
+        </form>
+      </div>
+
+      <div id="formularioAnexo">
+        <h2>Anexar certificado e baixar minhas notas</h2>
+        <p>
+          Anexe seu certificado digital (.pfx/.p12) e a senha. O sistema identifica automaticamente
+          seu CPF/CNPJ pelo proprio certificado, cadastra (ou reconhece) seu contribuinte e ja busca
+          todas as NFS-e vinculadas a ele no Ambiente Nacional. Da proxima vez voce nao precisa
+          anexar de novo - o painel lembra de voce neste computador.
+        </p>
+        <form id="formInicioRapido" class="form-inline">
+          <input type="file" name="arquivo" accept=".pfx,.p12" required />
+          <input type="password" name="senha" placeholder="Senha do certificado" required />
+          <select name="municipioId">
+            <option value="">Filtrar por municipio (opcional)</option>
+          </select>
+          <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/></svg>Anexar e carregar notas</button>
+        </form>
+        <div class="alternativa-windows">
+          <span>ou</span>
+          <button type="button" id="btnCertificadoWindows" class="btn-secundario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Usar certificado instalado neste computador</button>
+        </div>
+      </div>
+
+      <dialog id="dialogCertWindows" class="dialog-chave" aria-labelledby="dialogCertWindowsTitulo">
+        <h2 id="dialogCertWindowsTitulo">Certificados instalados neste computador</h2>
+        <p class="dialog-chave-dica">
+          Escolha qual usar. A chave do certificado continua guardada no Windows: ele serve para
+          baixar notas, XML e DANFSe. Para emitir ou cancelar NFS-e, anexe o arquivo .pfx.
+        </p>
+        <div id="listaCertWindows" class="lista-cert-windows"></div>
+        <div class="card-acoes">
+          <button type="button" id="btnFecharCertWindows" class="btn-secundario">Cancelar</button>
+        </div>
+      </dialog>
+
+      <div id="statusInicioRapido"></div>
+      <div id="listaInicioRapido" class="lista"></div>
+    </section>
+
+    <section id="tab-municipios" class="tab-content">
+      <h2>Municipios cadastrados</h2>
+      <form id="formMunicipio" class="form-inline">
+        <input name="codigoIbge" placeholder="Codigo IBGE (7 digitos)" maxlength="7" required />
+        <input name="nome" placeholder="Nome do municipio" required />
+        <input name="uf" placeholder="UF" maxlength="2" required />
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Cadastrar</button>
+      </form>
+      <div id="listaMunicipios" class="lista"></div>
+
+      <h2>Consultar aliquotas de um servico</h2>
+      <form id="formAliquotas" class="form-inline">
+        <select name="municipioId" required></select>
+        <input name="codigoServico" placeholder="Codigo do servico (ex: 0107)" required />
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Consultar</button>
+      </form>
+      <pre id="resultadoAliquotas" class="resultado"></pre>
+    </section>
+
+    <section id="tab-contribuintes" class="tab-content">
+      <h2>Contribuintes (prestadores)</h2>
+      <form id="formContribuinte" class="form-grid">
+        <select name="tipoInscricao" required>
+          <option value="CNPJ">CNPJ</option>
+          <option value="CPF">CPF</option>
+        </select>
+        <input name="inscricaoFederal" placeholder="CPF/CNPJ (somente digitos)" required />
+        <input name="razaoSocial" placeholder="Razao social" required />
+        <input name="inscricaoMunicipal" placeholder="Inscricao municipal (opcional)" />
+        <input name="email" placeholder="E-mail (opcional)" />
+        <select name="municipioId">
+          <option value="">Municipio de domicilio (opcional)</option>
+        </select>
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Cadastrar</button>
+      </form>
+      <div id="listaContribuintes" class="lista"></div>
+    </section>
+
+    <section id="tab-certificados" class="tab-content">
+      <h2>Certificados digitais (A1)</h2>
+      <form id="formCertificado" class="form-inline">
+        <select name="contribuinteId" required></select>
+        <input type="file" name="arquivo" accept=".pfx,.p12" required />
+        <input type="password" name="senha" placeholder="Senha do .pfx" required />
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/></svg>Enviar</button>
+      </form>
+      <div id="listaCertificados" class="lista"></div>
+    </section>
+
+    <section id="tab-emitir" class="tab-content">
+      <h2>Emitir DPS / NFS-e</h2>
+      <form id="formDps" class="form-grid">
+        <select name="contribuinteId" required></select>
+        <select name="certificadoId" required></select>
+        <input name="serie" placeholder="Serie" required />
+        <input name="numero" placeholder="Numero" required />
+        <input name="competencia" type="date" required />
+        <hr />
+        <input name="tomadorInscricao" placeholder="CPF/CNPJ do tomador" required />
+        <input name="tomadorNome" placeholder="Nome do tomador" required />
+        <input name="tomadorMunicipio" placeholder="Codigo IBGE do tomador" maxlength="7" required />
+        <input name="tomadorEmail" placeholder="E-mail do tomador (opcional)" />
+        <hr />
+        <input name="codTribNacional" placeholder="Codigo de tributacao nacional" required />
+        <input name="municipioPrestacao" placeholder="Codigo IBGE da prestacao" maxlength="7" required />
+        <input name="descricaoServico" placeholder="Descricao do servico" required />
+        <hr />
+        <input name="valorServicos" type="number" step="0.01" placeholder="Valor dos servicos (R$)" required />
+        <input name="aliquotaIss" type="number" step="0.0001" placeholder="Aliquota ISS % (opcional)" />
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Emitir NFS-e</button>
+      </form>
+      <pre id="resultadoDps" class="resultado"></pre>
+    </section>
+
+    <section id="tab-dps" class="tab-content">
+      <h2>Historico de DPS (todas: pendentes, autorizadas, rejeitadas, com erro)</h2>
+      <form id="formHistoricoDps" class="form-inline">
+        <select name="contribuinteId" required></select>
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Buscar</button>
+      </form>
+      <div id="listaHistoricoDps" class="lista"></div>
+    </section>
+
+    <section id="tab-notas" class="tab-content">
+      <h2>Notas emitidas</h2>
+      <button id="atualizarNotas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>Atualizar lista</button>
+      <div id="listaNotas" class="lista"></div>
+    </section>
+
+    <section id="tab-minhas-notas" class="tab-content">
+      <h2>Minhas notas no Ambiente Nacional</h2>
+      <p>
+        Busca TODAS as NFS-e vinculadas ao seu certificado no Ambiente Nacional (emitidas por
+        qualquer sistema, nao so por este painel), e filtra pelo municipio escolhido.
+      </p>
+      <form id="formMinhasNotas" class="form-inline">
+        <select name="contribuinteId" required></select>
+        <select name="municipioId"></select>
+        <label>De <input type="date" name="dataInicio" /></label>
+        <label>Ate <input type="date" name="dataFim" /></label>
+        <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>Sincronizar e listar</button>
+      </form>
+      <div id="statusSincronizacao"></div>
+      <div id="listaMinhasNotas" class="lista"></div>
+
+      <details class="diagnostico">
+        <summary>Diagnostico: ver resposta bruta do Ambiente Nacional</summary>
+        <p>
+          Use se a sincronizacao disser "0 novos documentos" mas voce sabe que existem notas.
+          Mostra exatamente o que o Ambiente Nacional respondeu, sem nenhuma interpretacao nossa.
+        </p>
+        <form id="formDiagnostico" class="form-inline">
+          <select name="contribuinteId" required></select>
+          <input name="nsu" placeholder="NSU inicial (padrao: 0)" value="0" />
+          <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Consultar bruto</button>
+        </form>
+        <pre id="resultadoDiagnostico" class="resultado"></pre>
+      </details>
+    </section>
+  </main>
+
+  <footer class="rodape-seguranca">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+    Certificados e senhas sao cifrados em repouso (AES-256-GCM) e nunca retornados pela API.
+    Comunicacao com o Ambiente Nacional via TLS mutuo com o certificado ICP-Brasil do contribuinte.
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

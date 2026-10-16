@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nfse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nfse
+    ports:
+      - "5432:5432"
+    volumes:
+      - nfse-pg-data:/var/lib/postgresql/data
+
+volumes:
+  nfse-pg-data:

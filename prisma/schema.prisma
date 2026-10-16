@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoInscricao {
+  CPF
+  CNPJ
+}
+
+enum TipoCertificado {
+  A1
+  A3
+}
+
+// ARQUIVO: .pfx anexado e guardado cifrado. REPOSITORIO_WINDOWS: certificado instalado no
+// Windows do servidor (chave nao exportavel) - guardamos so o thumbprint e o Windows faz o mTLS.
+enum OrigemCertificado {
+  ARQUIVO
+  REPOSITORIO_WINDOWS
+}
+
+enum StatusDps {
+  PENDENTE
+  ENVIADA
+  AUTORIZADA
+  REJEITADA
+  ERRO
+}
+
+enum StatusNfse {
+  AUTORIZADA
+  CANCELADA
+  SUBSTITUIDA
+}
+
+enum Ambiente {
+  HOMOLOGACAO
+  PRODUCAO
+}
+
+// Linha unica (id fixo "singleton") guardando o ambiente ativo no momento (homologacao/producao).
+// Permite trocar de ambiente pelo painel sem reiniciar o servidor.
+model Configuracao {
+  id           String   @id @default("singleton")
+  ambiente     Ambiente @default(HOMOLOGACAO)
+  atualizadoEm DateTime @updatedAt
+
+  @@map("configuracao")
+}
+
+model Municipio {
+  id            String   @id @default(uuid())
+  codigoIbge    String   @unique
+  nome          String
+  uf            String
+  parametrosRaw Json?
+  atualizadoEm  DateTime @updatedAt
+  criadoEm      DateTime @default(now())
+
+  contribuintes Contribuinte[]
+
+  @@map("municipios")
+}
+
+model Contribuinte {
+  id               String        @id @default(uuid())
+  tipoInscricao    TipoInscricao
+  inscricaoFederal String // CPF ou CNPJ, somente digitos
+  inscricaoMunicipal String?
+  razaoSocial      String
+  nomeFantasia     String?
+  email            String?
+  telefone         String?
+  // Municipio de domicilio/sede do contribuinte - apenas informativo. NAO restringe em quais
+  // municipios o contribuinte pode emitir/consultar notas (isso depende so do certificado).
+  municipioId      String?
+  municipio        Municipio?    @relation(fields: [municipioId], references: [id])
+  ativo            Boolean       @default(true)
+  criadoEm         DateTime      @default(now())
+  atualizadoEm     DateTime      @updatedAt
+
+  certificados Certificado[]
+  dpsList      Dps[]
+  documentosDistribuidos NfseDistribuida[]
+  chavesApi    ChaveApi[]
+
+  /// Ultimo NSU conhecido na API de Distribuicao do Contribuinte (ADN), usado para
+  /// paginar a sincronizacao incremental (busca so os documentos novos desde a ultima vez).
+  ultimoNsuDistribuicao String? @default("0")
+  /// Municipios: cursor do NSU de DISTRIBUICAO do ADN (notas geradas por outro sistema - ex. Emissor
+  /// Nacional - em que o municipio e interessado). O de cima e o de RECEPCAO (sistema proprio).
+  ultimoNsuDistribuicaoMunicipio String? @default("0")
+
+  // Um CPF/CNPJ = um unico registro de contribuinte no sistema (nao mais por municipio).
+  @@unique([tipoInscricao, inscricaoFederal])
+  @@map("contribuintes")
+}
+
+model Certificado {
+  id                String          @id @default(uuid())
+  contribuinteId    String
+  contribuinte      Contribuinte    @relation(fields: [contribuinteId], references: [id])
+  tipo              TipoCertificado @default(A1)
+  origem            OrigemCertificado @default(ARQUIVO)
+  thumbprint        String? // so REPOSITORIO_WINDOWS: SHA-1 do certificado no repositorio CurrentUser\My
+  // Campos abaixo so existem para origem ARQUIVO
+  arquivoCifrado    Bytes? // .pfx cifrado em repouso (AES-256-GCM)
+  senhaCifrada      String? // senha do pfx cifrada
+  iv                String? // IV usado na cifragem (hex)
+  authTag           String? // auth tag do AES-GCM (hex)
+  titular           String // CN extraido do certificado
+  numeroSerie       String
+  validoDe          DateTime
+  validoAte         DateTime
+  ativo             Boolean         @default(true)
+  criadoEm          DateTime        @default(now())
+
+  @@map("certificados")
+}
+
+// Chave de API restrita a um contribuinte (so enxerga os dados dele). Gerada a cada certificado
+// anexado; a anterior e revogada. Guardamos so o SHA-256 - a chave em claro aparece uma unica vez.
+model ChaveApi {
+  id             String       @id @default(uuid())
+  contribuinteId String
+  contribuinte   Contribuinte @relation(fields: [contribuinteId], references: [id])
+  hash           String       @unique
+  prefixo        String
+  ativa          Boolean      @default(true)
+  criadaEm       DateTime     @default(now())
+  revogadaEm     DateTime?
+
+  @@index([contribuinteId])
+  @@map("chaves_api")
+}
+
+model Dps {
+  id                String       @id @default(uuid())
+  contribuinteId    String
+  contribuinte      Contribuinte @relation(fields: [contribuinteId], references: [id])
+  serie             String
+  numero            String
+  competencia       DateTime
+  payload           Json // dados de entrada usados para montar o XML da DPS
+  xmlGerado         String? // XML da DPS assinada (antes do envio)
+  xmlEnviado        String? // payload JSON/XML efetivamente enviado ao Sefin Nacional
+  status            StatusDps    @default(PENDENTE)
+  mensagemErro      String?
+  chaveAcessoNfse   String?
+  criadoEm          DateTime     @default(now())
+  atualizadoEm      DateTime     @updatedAt
+
+  nfse Nfse?
+  logs LogIntegracao[]
+
+  @@unique([contribuinteId, serie, numero])
+  @@map("dps")
+}
+
+model Nfse {
+  id              String     @id @default(uuid())
+  dpsId           String     @unique
+  dps             Dps        @relation(fields: [dpsId], references: [id])
+  chaveAcesso     String     @unique
+  numero          String
+  xmlNfse         String
+  status          StatusNfse @default(AUTORIZADA)
+  valorServicos   Decimal    @db.Decimal(15, 2)
+  valorIss        Decimal?   @db.Decimal(15, 2)
+  dataEmissao     DateTime
+  criadoEm        DateTime   @default(now())
+  atualizadoEm    DateTime   @updatedAt
+
+  eventos EventoNfse[]
+
+  @@map("nfse")
+}
+
+model EventoNfse {
+  id            String   @id @default(uuid())
+  nfseId        String
+  nfse          Nfse     @relation(fields: [nfseId], references: [id])
+  tipoEvento    String
+  numSeqEvento  Int      @default(1)
+  justificativa String?
+  xmlEvento     String?
+  xmlResposta   String?
+  sucesso       Boolean  @default(false)
+  criadoEm      DateTime @default(now())
+
+  @@map("eventos_nfse")
+}
+
+// NFS-e (ou evento) obtido via API de Distribuicao do Contribuinte do ADN (GET /DFe/{NSU}),
+// ou seja, documentos onde o contribuinte figura como prestador/tomador/intermediario, SEM
+// necessariamente terem sido emitidos por este sistema (podem ter sido emitidos pela
+// prefeitura, por outro emissor, etc.). Por isso nao tem vinculo com a tabela Dps local.
+model NfseDistribuida {
+  id               String       @id @default(uuid())
+  contribuinteId   String
+  contribuinte     Contribuinte @relation(fields: [contribuinteId], references: [id])
+  // Cada tipo de NSU do ADN tem numeracao propria, comecando em 1: RECEPCAO (enviado pelo sistema
+  // proprio do municipio), DISTRIBUICAO (gerado por outro sistema, municipio interessado) ou
+  // CONTRIBUINTE (API do contribuinte, sem tipo).
+  tipoNsu          String       @default("RECEPCAO")
+  nsu              String
+  chaveAcesso      String?
+  numeroNfse       String?
+  tipoDocumento    String // 'NFSe' | 'Evento' | 'Desconhecido'
+  codigoMunicipio  String?
+  codigoMunicipioEmissor String? // cLocEmi: onde a nota foi emitida (= 7 primeiros digitos da chave)
+  nomeMunicipioEmissor   String? // xLocEmi
+  cnpjPrestador    String?
+  nomePrestador    String?
+  cnpjTomador      String?
+  valorServicos    Decimal?     @db.Decimal(15, 2)
+  dataEmissao      DateTime?
+  xmlBruto         String
+  criadoEm         DateTime     @default(now())
+  // Marcado quando um evento de cancelamento (tipo 101101) com a mesma chave de acesso e
+  // recebido do ADN. Notas canceladas ficam fora dos totais/listagens por padrao.
+  cancelada        Boolean      @default(false)
+
+  @@unique([contribuinteId, tipoNsu, nsu])
+  @@index([contribuinteId, codigoMunicipioEmissor])
+  @@map("nfse_distribuidas")
+}
+
+model LogIntegracao {
+  id           String   @id @default(uuid())
+  dpsId        String?
+  dps          Dps?     @relation(fields: [dpsId], references: [id])
+  endpoint     String
+  metodoHttp   String
+  statusHttp   Int?
+  requisicao   String?
+  resposta     String?
+  erro         String?
+  criadoEm     DateTime @default(now())
+
+  @@map("logs_integracao")
+}
